@@ -25,22 +25,27 @@ def test_read_state_existing_file(tmp_path):
 
 
 def test_write_state_atomic(tmp_path):
-    """write_state writes atomically — tmp file then rename."""
+    """write_state writes via tmp file then renames — verifies os.replace is called."""
+    import os
     from state import write_state
     state_file = tmp_path / "state.json"
     data = {"synced_posts": ["XYZ789"], "last_checked": "2026-03-19T12:00:00Z"}
-    write_state(state_file, data)
-    written = json.loads(state_file.read_text())
-    assert written == data
-    # tmp file must be cleaned up
-    assert not (tmp_path / ".state.json.tmp").exists()
+    with patch("state.os.replace", wraps=os.replace) as mock_replace:
+        write_state(state_file, data)
+    mock_replace.assert_called_once()
+    src, dst = mock_replace.call_args[0]
+    assert Path(src).name == ".state.json.tmp"
+    assert Path(dst) == state_file
+    # Final file should have correct content
+    assert json.loads(state_file.read_text()) == data
 
 
 def test_write_state_no_tmp_leftover(tmp_path):
-    """No .state.json.tmp file left after successful write."""
+    """No tmp file left after successful write."""
     from state import write_state
     state_file = tmp_path / "state.json"
     write_state(state_file, {"synced_posts": [], "last_checked": None})
+    # With the new naming scheme, tmp file should be .state.json.tmp
     assert not (tmp_path / ".state.json.tmp").exists()
 
 
