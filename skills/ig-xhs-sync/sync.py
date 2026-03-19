@@ -7,10 +7,8 @@ Usage:
 import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
 
 SKILL_DIR = Path(__file__).parent
-load_dotenv(SKILL_DIR / ".env")
 
 from state import read_state, write_state, mark_synced
 from scrape import scrape_new_posts, cleanup_post_images
@@ -78,6 +76,8 @@ def run_sync(ig_username, fetch_count, xhs_username, xhs_password,
 
 
 def main():
+    from dotenv import load_dotenv
+    load_dotenv(SKILL_DIR / ".env")
     missing = validate_env(dict(os.environ))
     if missing:
         print(f"ERROR: Missing required .env keys: {', '.join(missing)}")
