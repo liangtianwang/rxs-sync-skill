@@ -1,3 +1,4 @@
+import itertools
 import instaloader
 import shutil
 from pathlib import Path
@@ -37,6 +38,11 @@ def download_images(post, tmp_dir: Path) -> list[Path]:
 
     # Collect downloaded jpg/png files
     images = sorted(post_dir.glob("*.jpg")) + sorted(post_dir.glob("*.png"))
+    if not images:
+        raise RuntimeError(
+            f"No images found in {post_dir} after download — "
+            f"post {post.shortcode} may have failed to download"
+        )
     return images
 
 
@@ -58,7 +64,7 @@ def scrape_new_posts(ig_username: str, fetch_count: int, synced: list[str], tmp_
     )
 
     profile = instaloader.Profile.from_username(profile_loader.context, ig_username)
-    recent_posts = list(profile.get_posts())[:fetch_count]
+    recent_posts = list(itertools.islice(profile.get_posts(), fetch_count))
     new_posts = filter_new_posts(recent_posts, synced)
 
     results = []
