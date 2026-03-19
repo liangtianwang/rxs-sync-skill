@@ -23,6 +23,11 @@ def rewrite_caption(caption: str, client: anthropic.Anthropic) -> str:
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
+    if response.stop_reason == "max_tokens":
+        raise RuntimeError(
+            f"Caption rewrite was truncated (hit max_tokens=300). "
+            f"Partial output: {response.content[0].text[:50]!r}"
+        )
     return response.content[0].text.strip()
 
 
