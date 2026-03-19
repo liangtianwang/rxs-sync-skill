@@ -7,8 +7,10 @@ Usage:
 """
 import argparse
 import json
+import os
 import time
 from pathlib import Path
+from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright, Page, BrowserContext
 
 SKILL_DIR = Path(__file__).parent
@@ -56,11 +58,10 @@ def post_note(context: BrowserContext, images: list[Path], caption: str) -> bool
         page.goto(f"{XHS_CREATOR_URL}/publish/publish")
         page.wait_for_load_state("networkidle")
 
-        # Upload images one by one
+        # Upload images — pass all at once (XHS supports multi-select)
         file_input = page.locator('input[type="file"]').first
-        for img_path in images:
-            file_input.set_input_files(str(img_path))
-            time.sleep(1)  # wait for upload to register
+        file_input.set_input_files([str(img_path) for img_path in images])
+        time.sleep(2)  # wait for all uploads to register
 
         # Wait for upload previews to appear
         page.wait_for_selector(".upload-preview", timeout=30000)
@@ -87,33 +88,32 @@ def run_post(images: list[Path], caption: str, username: str, password: str, hea
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
+        try:
+            if session_path:
+                context = browser.new_context(storage_state=str(session_path))
+                print("  Reusing saved XHS session.")
+            else:
+                context = browser.new_context()
 
-        if session_path:
-            context = browser.new_context(storage_state=str(session_path))
-            print("  Reusing saved XHS session.")
-        else:
-            context = browser.new_context()
-
-        # Verify session is valid by checking if we're logged in
-        page = context.new_page()
-        page.goto(XHS_URL)
-        page.wait_for_load_state("networkidle")
-        is_logged_in = page.locator('[class*="user-avatar"]').count() > 0
-        page.close()
-
-        if not is_logged_in:
-            print("  Session expired or missing — attempting credential login...")
+            # Verify session is valid — navigate to creator platform and check for login redirect
             page = context.new_page()
-            success = login_with_credentials(page, username, password)
+            page.goto(f"{XHS_CREATOR_URL}/publish/publish")
+            page.wait_for_load_state("networkidle")
+            is_logged_in = "login" not in page.url and "signin" not in page.url
             page.close()
-            if not success:
-                browser.close()
-                return False
-            save_session(context)
 
-        result = post_note(context, images, caption)
-        browser.close()
-        return result
+            if not is_logged_in:
+                print("  Session expired or missing — attempting credential login...")
+                page = context.new_page()
+                success = login_with_credentials(page, username, password)
+                page.close()
+                if not success:
+                    return False
+                save_session(context)
+
+            return post_note(context, images, caption)
+        finally:
+            browser.close()
 
 
 def run_login(username: str, password: str) -> None:
@@ -133,8 +133,6 @@ def run_login(username: str, password: str) -> None:
 
 
 if __name__ == "__main__":
-    import os
-    from dotenv import load_dotenv
     load_dotenv(SKILL_DIR / ".env")
 
     parser = argparse.ArgumentParser()
