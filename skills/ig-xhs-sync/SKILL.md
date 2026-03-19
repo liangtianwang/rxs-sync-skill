@@ -19,7 +19,7 @@ pip install -r requirements.txt
 playwright install chromium
 cp .env.example .env
 # Fill in .env with your credentials
-python post.py --login   # Opens browser — log in manually, press Enter when done
+python post.py --login   # Opens browser at XHS homepage — log in manually, press Enter when done
 ```
 
 Required `.env` keys: `IG_USERNAME`, `XHS_USERNAME`, `XHS_PASSWORD`, `ANTHROPIC_API_KEY`
@@ -81,3 +81,4 @@ After `sync.py` completes, report:
 | Instagram scrape returns nothing | Check `IG_USERNAME` in `.env`; verify the profile is public |
 | `anthropic.APIError` | Check `ANTHROPIC_API_KEY` in `.env` |
 | Missing `.env` keys listed on exit | Fill them in `.env` |
+| "Nothing new to sync" but new posts exist | The skill only syncs image posts; video posts are skipped |
