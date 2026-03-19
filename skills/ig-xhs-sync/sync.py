@@ -50,9 +50,8 @@ def run_sync(ig_username, fetch_count, xhs_username, xhs_password,
             caption = rewrite_caption(post["caption"], client)
             print(f"  Caption rewritten.")
         except Exception as e:
-            print(f"  Caption rewrite failed: {e} — skipping.")
-            failed += 1
-            continue
+            print(f"  Caption rewrite failed: {e} — using original caption.")
+            caption = post["caption"]
 
         success = run_post(
             images=post["images"],

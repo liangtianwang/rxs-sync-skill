@@ -34,8 +34,8 @@ def load_session_path() -> Path | None:
 def login_with_credentials(page: Page, username: str, password: str) -> bool:
     """Attempt credential login. Returns True on success."""
     try:
-        page.goto(f"{XHS_URL}/login")
-        page.wait_for_load_state("networkidle")
+        page.goto(f"{XHS_URL}/login", wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("networkidle", timeout=60000)
         # Switch to password login tab if present
         pw_tab = page.locator("text=密码登录")
         if pw_tab.count() > 0:
@@ -55,8 +55,8 @@ def post_note(context: BrowserContext, images: list[Path], caption: str) -> bool
     """Upload images and caption to XHS creator platform. Returns True on success."""
     page = context.new_page()
     try:
-        page.goto(f"{XHS_CREATOR_URL}/publish/publish")
-        page.wait_for_load_state("networkidle")
+        page.goto(f"{XHS_CREATOR_URL}/publish/publish", wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("networkidle", timeout=60000)
 
         # Upload images — pass all at once (XHS supports multi-select)
         file_input = page.locator('input[type="file"]').first
@@ -69,6 +69,14 @@ def post_note(context: BrowserContext, images: list[Path], caption: str) -> bool
         # Fill caption
         caption_area = page.locator('textarea[placeholder*="描述"]').first
         caption_area.fill(caption)
+
+        # Set visibility to private (私密)
+        try:
+            page.click('text=公开', timeout=5000)
+            page.click('text=私密', timeout=5000)
+            print("  Visibility set to private (私密).")
+        except Exception as e:
+            print(f"  WARNING: Could not set post to private: {e}")
 
         # Submit
         page.click('button:has-text("发布")')
@@ -90,15 +98,15 @@ def run_post(images: list[Path], caption: str, username: str, password: str, hea
         browser = p.chromium.launch(headless=headless)
         try:
             if session_path:
-                context = browser.new_context(storage_state=str(session_path))
+                context = _new_context(browser, storage_state=str(session_path))
                 print("  Reusing saved XHS session.")
             else:
-                context = browser.new_context()
+                context = _new_context(browser)
 
             # Verify session is valid — navigate to creator platform and check for login redirect
             page = context.new_page()
-            page.goto(f"{XHS_CREATOR_URL}/publish/publish")
-            page.wait_for_load_state("networkidle")
+            page.goto(f"{XHS_CREATOR_URL}/publish/publish", wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_load_state("networkidle", timeout=60000)
             is_logged_in = "login" not in page.url and "signin" not in page.url
             page.close()
 
@@ -116,14 +124,30 @@ def run_post(images: list[Path], caption: str, username: str, password: str, hea
             browser.close()
 
 
+def _new_context(browser, storage_state=None):
+    """Create a browser context with a realistic user-agent to avoid bot detection."""
+    kwargs = dict(
+        user_agent=(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        locale="zh-CN",
+        timezone_id="Asia/Shanghai",
+    )
+    if storage_state:
+        kwargs["storage_state"] = storage_state
+    return browser.new_context(**kwargs)
+
+
 def run_login(username: str, password: str) -> None:
     """First-time login flow — always headed so user can handle OTP/CAPTCHA."""
     print("Starting first-time login (headed mode)...")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
+        context = _new_context(browser)
         page = context.new_page()
-        page.goto(XHS_URL)
+        page.goto(XHS_URL, wait_until="domcontentloaded", timeout=60000)
         print("Please log in manually in the browser window.")
         print("Press Enter here once you are logged in...")
         input()

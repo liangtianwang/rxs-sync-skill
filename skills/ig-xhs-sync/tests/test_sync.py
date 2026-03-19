@@ -95,25 +95,29 @@ def test_sync_post_failure_not_marked_synced(tmp_path):
     mock_write.assert_not_called()
 
 
-def test_sync_rewrite_failure_not_marked_synced(tmp_path):
-    """When rewrite_caption raises an exception, the post is counted as failed and state is not written."""
+def test_sync_rewrite_failure_uses_original_caption(tmp_path):
+    """When rewrite_caption raises, fall back to original caption and continue posting."""
     from sync import run_sync
     mock_post = {
         "shortcode": "ERR1",
         "images": [tmp_path / "img.jpg"],
-        "caption": "hello",
+        "caption": "original caption",
         "timestamp": "2026-03-19T10:00:00",
     }
     with patch("sync.scrape_new_posts", return_value=[mock_post]), \
          patch("sync.read_state", return_value={"synced_posts": [], "last_checked": None}), \
          patch("sync.rewrite_caption", side_effect=RuntimeError("API error")), \
-         patch("sync.write_state") as mock_write, \
+         patch("sync.run_post", return_value=True) as mock_post_fn, \
+         patch("sync.cleanup_post_images"), \
+         patch("sync.write_state"), \
          patch("sync.make_client", return_value=MagicMock()):
         result = run_sync(
             ig_username="user", fetch_count=10,
             xhs_username="xhs", xhs_password="pw",
             api_key="key", headless=False, skill_dir=tmp_path,
         )
-    assert result["failed"] == 1
-    assert result["synced"] == 0
-    mock_write.assert_not_called()
+    assert result["synced"] == 1
+    assert result["failed"] == 0
+    # run_post should have been called with the original caption
+    call_kwargs = mock_post_fn.call_args.kwargs
+    assert call_kwargs["caption"] == "original caption"

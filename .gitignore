@@ -1,0 +1,4 @@
+.env
+.idea/
+skills/**/*.DS_Store
+skills/**/tmp/
